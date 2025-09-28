@@ -5,6 +5,7 @@ module IF(
     input wire id_allowin,
 
     input wire [32:0] branch_reg,
+    input wire br_taken_cancel,
 
     output wire if_to_id_valid,
     output wire [63:0] if_reg,
@@ -54,6 +55,9 @@ always @(posedge clk) begin
     end
     else if (if_allowin) begin
         if_valid <= pre_to_if_valid;
+    end
+    else if (br_taken_cancel) begin
+        if_valid <= 1'b0;
     end
 
     if (reset) begin

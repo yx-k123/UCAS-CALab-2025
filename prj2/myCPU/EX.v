@@ -14,7 +14,11 @@ module EX(
     output wire data_sram_en,
     output wire [ 3:0] data_sram_we,
     output wire [31:0] data_sram_addr,
-    output wire [31:0] data_sram_wdata
+    output wire [31:0] data_sram_wdata,
+
+    output wire        ex_valid_o,
+    output wire        ex_gr_we_o,
+    output wire [4:0]  ex_dest_o
 );
 
 reg ex_valid;
@@ -77,4 +81,8 @@ assign data_sram_en    = 1;
 assign data_sram_we    = (mem_we && ex_valid) ? 4'b1111 : 4'b0000;
 assign data_sram_addr  = ex_alu_result;
 assign data_sram_wdata = rkd_value;
+
+assign ex_valid_o = ex_valid;
+assign ex_gr_we_o = gr_we && ex_valid;
+assign ex_dest_o  = dest;
 endmodule

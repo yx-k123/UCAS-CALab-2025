@@ -12,7 +12,11 @@ module WB(
     output wire [31:0] debug_wb_pc,
     output wire [ 3:0] debug_wb_rf_we,
     output wire [ 4:0] debug_wb_rf_wnum,
-    output wire [31:0] debug_wb_rf_wdata
+    output wire [31:0] debug_wb_rf_wdata,
+
+    output wire        wb_valid_o,
+    output wire        wb_gr_we_o,
+    output wire [4:0]  wb_dest_o
 );
 
 reg         wb_valid;
@@ -62,5 +66,9 @@ assign debug_wb_pc       = wb_pc;
 assign debug_wb_rf_we    = {4{rf_we}};
 assign debug_wb_rf_wnum  = wb_dest;
 assign debug_wb_rf_wdata = wb_final_result;
+
+assign wb_valid_o  = wb_valid;
+assign wb_gr_we_o  = wb_gr_we && wb_valid;
+assign wb_dest_o   = wb_dest;
 
 endmodule

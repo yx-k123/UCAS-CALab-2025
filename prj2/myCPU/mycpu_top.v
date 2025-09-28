@@ -27,6 +27,7 @@ module mycpu_top(
     wire               if_to_id_valid;
     wire [63:0]        if_reg;
     wire [32:0]        branch_reg;
+    wire               br_taken_cancel; // flush signal from ID to IF
 
     // ID/EX
     wire               ex_allowin;
@@ -38,11 +39,24 @@ module mycpu_top(
     wire               mem_allowin;
     wire               ex_to_mem_valid;
     wire [103:0]       ex_reg;
+    // Hazard detect support (EX stage outputs for ID)
+    wire               ex_valid_o;
+    wire               ex_gr_we_o;
+    wire [4:0]         ex_dest_o;
 
     // MEM/WB
     wire               wb_allowin;
     wire               mem_to_wb_valid;
     wire [69:0]        mem_reg;
+    // Hazard detect support (MEM stage outputs for ID)
+    wire               mem_valid_o;
+    wire               mem_gr_we_o;
+    wire [4:0]         mem_dest_o;
+
+    // WB stage outputs for ID hazard detection
+    wire               wb_valid_o;
+    wire               wb_gr_we_o;
+    wire [4:0]         wb_dest_o;
 
     // ---------------- IF ----------------
     IF u_IF(
@@ -51,6 +65,7 @@ module mycpu_top(
         .id_allowin     (id_allowin),
 
         .branch_reg     (branch_reg),
+        .br_taken_cancel(br_taken_cancel),
 
         .if_to_id_valid (if_to_id_valid),
         .if_reg         (if_reg),
@@ -77,8 +92,20 @@ module mycpu_top(
         .id_reg         (id_reg),
 
         .branch_reg     (branch_reg),
+        .br_taken_cancel(br_taken_cancel),
 
-        .wb_to_rf_reg   (wb_to_rf_reg)
+        .wb_to_rf_reg   (wb_to_rf_reg),
+
+        // hazard detection inputs from later stages
+        .ex_valid_o     (ex_valid_o),
+        .ex_gr_we_o     (ex_gr_we_o),
+        .ex_dest_o      (ex_dest_o),
+        .mem_valid_o    (mem_valid_o),
+        .mem_gr_we_o    (mem_gr_we_o),
+        .mem_dest_o     (mem_dest_o),
+        .wb_valid_o     (wb_valid_o),
+        .wb_gr_we_o     (wb_gr_we_o),
+        .wb_dest_o      (wb_dest_o)
     );
 
     // ---------------- EX ----------------
@@ -98,7 +125,12 @@ module mycpu_top(
         .data_sram_en   (data_sram_en),
         .data_sram_we  (data_sram_we),     
         .data_sram_addr (data_sram_addr),
-        .data_sram_wdata(data_sram_wdata)
+        .data_sram_wdata(data_sram_wdata),
+
+        // hazard detect outputs
+        .ex_valid_o     (ex_valid_o),
+        .ex_gr_we_o     (ex_gr_we_o),
+        .ex_dest_o      (ex_dest_o)
     );
 
     // ---------------- MEM ----------------
@@ -115,7 +147,12 @@ module mycpu_top(
         .mem_to_wb_valid(mem_to_wb_valid),
         .mem_reg        (mem_reg),
 
-        .data_sram_rdata(data_sram_rdata)
+        .data_sram_rdata(data_sram_rdata),
+
+        // hazard detect outputs
+        .mem_valid_o    (mem_valid_o),
+        .mem_gr_we_o    (mem_gr_we_o),
+        .mem_dest_o     (mem_dest_o)
     );
 
     // ---------------- WB ----------------
@@ -133,7 +170,14 @@ module mycpu_top(
         .debug_wb_pc    (debug_wb_pc),
         .debug_wb_rf_we (debug_wb_rf_we),
         .debug_wb_rf_wnum(debug_wb_rf_wnum),
-        .debug_wb_rf_wdata(debug_wb_rf_wdata)
+        .debug_wb_rf_wdata(debug_wb_rf_wdata),
+
+        // hazard detect outputs
+        .wb_valid_o     (wb_valid_o),
+        .wb_gr_we_o     (wb_gr_we_o),
+        .wb_dest_o      (wb_dest_o)
     );
+
+    // End of pipeline instantiations
 
 endmodule

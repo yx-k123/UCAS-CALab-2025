@@ -12,27 +12,28 @@ module ID(
     output wire [151:0] id_reg,
 
     output wire [32:0] branch_reg,
+    output wire br_taken_cancel,
 
-    input wire [37:0] wb_to_rf_reg
+    input wire [37:0] wb_to_rf_reg,
+
+    input wire        ex_valid_o,
+    input wire        ex_gr_we_o,
+    input wire [4:0]  ex_dest_o,
+
+    input wire        mem_valid_o,
+    input wire        mem_gr_we_o,
+    input wire [4:0]  mem_dest_o,
+
+    input wire        wb_valid_o,
+    input wire        wb_gr_we_o,
+    input wire [4:0]  wb_dest_o
 );
 
 reg id_valid;
 wire id_ready_go;
-assign id_ready_go = 1'b1;
+
 assign id_allowin = !id_valid || id_ready_go && ex_allowin;
 assign id_to_ex_valid = id_valid && id_ready_go;
-
-reg [63:0] if_reg_r;
-always @(posedge clk) begin
-    if (reset) begin
-        id_valid <= 1'b0;
-    end else if (id_allowin) begin
-        id_valid <= if_to_id_valid;
-    end
-    if (if_to_id_valid && id_allowin) begin
-        if_reg_r <= if_reg;
-    end
-end
 
 wire [31:0] id_pc;
 wire [31:0] id_inst;
@@ -47,6 +48,20 @@ wire        br_taken;
 wire [31:0] br_target;
 assign branch_reg = {br_taken, br_target};
 
+reg [63:0] if_reg_r;
+always @(posedge clk) begin
+    if (reset) begin
+        id_valid <= 1'b0;
+    end else if (br_taken_cancel) begin
+        id_valid <= 1'b0;
+    end else if (id_allowin) begin
+        id_valid <= if_to_id_valid;
+    end
+    if (if_to_id_valid && id_allowin) begin
+        if_reg_r <= if_reg;
+    end
+end
+
 wire [11:0] alu_op;
 wire        src1_is_pc;
 wire        src2_is_imm;
@@ -55,8 +70,6 @@ wire        gr_we;
 wire        mem_we;
 wire [ 4:0] dest;
 wire [31:0] imm;
-wire [31:0] rs_value;
-wire [31:0] rt_value;
 
 wire        inst_add_w;
 wire        inst_sub_w;
@@ -252,6 +265,32 @@ assign br_taken = (   inst_beq  &&  rj_eq_rd
                    || inst_b
                   ) && id_valid;
 assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (id_pc + br_offs) : (rj_value + jirl_offs);
+assign br_taken_cancel = br_taken && id_valid && id_ready_go;
 
- 
+wire rs1_en;   // 是否真正使用 rj
+wire rs2_en;   // 是否真正使用第二源寄存器
+wire [4:0] rs1 = rj;
+wire [4:0] rs2 = src_reg_is_rd ? rd : rk;
+
+assign rs1_en =
+       inst_add_w | inst_sub_w | inst_slt  | inst_sltu |
+       inst_nor   | inst_and   | inst_or   | inst_xor  |
+       inst_slli_w| inst_srli_w| inst_srai_w|
+       inst_addi_w| inst_ld_w  | inst_st_w |
+       inst_jirl  | inst_beq   | inst_bne;  // 不含 bl/b/lu12i_w
+
+assign rs2_en =
+       inst_add_w | inst_sub_w | inst_slt  | inst_sltu |
+       inst_nor   | inst_and   | inst_or   | inst_xor  |
+       inst_beq   | inst_bne   | inst_st_w; // 第二源（rk 或 rd）
+
+wire hazard_ex  = ex_valid_o  && ex_gr_we_o  && (ex_dest_o  != 5'd0) &&
+                  ((rs1_en && rs1 == ex_dest_o) || (rs2_en && rs2 == ex_dest_o));
+wire hazard_mem = mem_valid_o && mem_gr_we_o && (mem_dest_o != 5'd0) &&
+                  ((rs1_en && rs1 == mem_dest_o) || (rs2_en && rs2 == mem_dest_o));
+wire hazard_wb = wb_valid_o && wb_gr_we_o && (wb_dest_o != 5'd0) &&
+                  ((rs1_en && rs1 == wb_dest_o) || (rs2_en && rs2 == wb_dest_o));
+
+assign id_ready_go =!(hazard_ex | hazard_mem | hazard_wb);
+
 endmodule
